@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"testEntGo/ent"
+    "testEntGo/ent/people"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
@@ -40,6 +41,19 @@ func createPeople(ctx context.Context, cli *ent.Client) (*ent.People, error) {
     if err != nil {
         return nil, fmt.Errorf("while creating new people: %w", err)
     }
+    log.Printf("record in people created")
+    return res, nil
+}
+
+// queries user, fails if not found
+func queryPeople(ctx context.Context, cli *ent.Client) (*ent.People, error) {
+    res, err := cli.People.Query().
+        Where(people.Name("Primera")).
+        Only(ctx)
+    if err != nil {
+        return nil, fmt.Errorf("while querying people: %w", err)
+    }
+    log.Printf("people queried")
     return res, nil
 }
 
@@ -60,5 +74,9 @@ func main() {
     // Create a record on people
     if _, err := createPeople(ctx, client); err != nil {
         log.Fatalf("failed creating new people: %v", err)
+    }
+    // Query people
+    if _, err := queryPeople(ctx, client); err != nil {
+        log.Fatalf("failed querying people: %v", err)
     }
 }
