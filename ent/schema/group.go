@@ -17,13 +17,13 @@ type Group struct {
 func (Group) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("name").
-		    Match(regexp.MustCompile("[a-zA-Z_]+$")),
+			Match(regexp.MustCompile("[a-zA-Z_]+$")),
 	}
 }
 
 // Edges of the Group.
 func (Group) Edges() []ent.Edge {
-	return []ent.Edge {
+	return []ent.Edge{
 		edge.To("peoples", People.Type),
 	}
 }
