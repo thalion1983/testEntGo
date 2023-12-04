@@ -11,11 +11,14 @@ import (
 
 	"testEntGo/ent/migrate"
 
+	"testEntGo/ent/clothe"
+	"testEntGo/ent/group"
 	"testEntGo/ent/people"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
 )
 
 // Client is the client that holds all ent builders.
@@ -23,6 +26,10 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// Clothe is the client for interacting with the Clothe builders.
+	Clothe *ClotheClient
+	// Group is the client for interacting with the Group builders.
+	Group *GroupClient
 	// People is the client for interacting with the People builders.
 	People *PeopleClient
 }
@@ -36,6 +43,8 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.Clothe = NewClotheClient(c.config)
+	c.Group = NewGroupClient(c.config)
 	c.People = NewPeopleClient(c.config)
 }
 
@@ -129,6 +138,8 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	return &Tx{
 		ctx:    ctx,
 		config: cfg,
+		Clothe: NewClotheClient(cfg),
+		Group:  NewGroupClient(cfg),
 		People: NewPeopleClient(cfg),
 	}, nil
 }
@@ -149,6 +160,8 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	return &Tx{
 		ctx:    ctx,
 		config: cfg,
+		Clothe: NewClotheClient(cfg),
+		Group:  NewGroupClient(cfg),
 		People: NewPeopleClient(cfg),
 	}, nil
 }
@@ -156,7 +169,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		People.
+//		Clothe.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -178,22 +191,328 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
+	c.Clothe.Use(hooks...)
+	c.Group.Use(hooks...)
 	c.People.Use(hooks...)
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
+	c.Clothe.Intercept(interceptors...)
+	c.Group.Intercept(interceptors...)
 	c.People.Intercept(interceptors...)
 }
 
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *ClotheMutation:
+		return c.Clothe.mutate(ctx, m)
+	case *GroupMutation:
+		return c.Group.mutate(ctx, m)
 	case *PeopleMutation:
 		return c.People.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// ClotheClient is a client for the Clothe schema.
+type ClotheClient struct {
+	config
+}
+
+// NewClotheClient returns a client for the Clothe from the given config.
+func NewClotheClient(c config) *ClotheClient {
+	return &ClotheClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `clothe.Hooks(f(g(h())))`.
+func (c *ClotheClient) Use(hooks ...Hook) {
+	c.hooks.Clothe = append(c.hooks.Clothe, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `clothe.Intercept(f(g(h())))`.
+func (c *ClotheClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Clothe = append(c.inters.Clothe, interceptors...)
+}
+
+// Create returns a builder for creating a Clothe entity.
+func (c *ClotheClient) Create() *ClotheCreate {
+	mutation := newClotheMutation(c.config, OpCreate)
+	return &ClotheCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Clothe entities.
+func (c *ClotheClient) CreateBulk(builders ...*ClotheCreate) *ClotheCreateBulk {
+	return &ClotheCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ClotheClient) MapCreateBulk(slice any, setFunc func(*ClotheCreate, int)) *ClotheCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ClotheCreateBulk{err: fmt.Errorf("calling to ClotheClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ClotheCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ClotheCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Clothe.
+func (c *ClotheClient) Update() *ClotheUpdate {
+	mutation := newClotheMutation(c.config, OpUpdate)
+	return &ClotheUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ClotheClient) UpdateOne(cl *Clothe) *ClotheUpdateOne {
+	mutation := newClotheMutation(c.config, OpUpdateOne, withClothe(cl))
+	return &ClotheUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ClotheClient) UpdateOneID(id int) *ClotheUpdateOne {
+	mutation := newClotheMutation(c.config, OpUpdateOne, withClotheID(id))
+	return &ClotheUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Clothe.
+func (c *ClotheClient) Delete() *ClotheDelete {
+	mutation := newClotheMutation(c.config, OpDelete)
+	return &ClotheDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ClotheClient) DeleteOne(cl *Clothe) *ClotheDeleteOne {
+	return c.DeleteOneID(cl.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ClotheClient) DeleteOneID(id int) *ClotheDeleteOne {
+	builder := c.Delete().Where(clothe.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ClotheDeleteOne{builder}
+}
+
+// Query returns a query builder for Clothe.
+func (c *ClotheClient) Query() *ClotheQuery {
+	return &ClotheQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeClothe},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Clothe entity by its id.
+func (c *ClotheClient) Get(ctx context.Context, id int) (*Clothe, error) {
+	return c.Query().Where(clothe.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ClotheClient) GetX(ctx context.Context, id int) *Clothe {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryOwner queries the owner edge of a Clothe.
+func (c *ClotheClient) QueryOwner(cl *Clothe) *PeopleQuery {
+	query := (&PeopleClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := cl.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(clothe.Table, clothe.FieldID, id),
+			sqlgraph.To(people.Table, people.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, clothe.OwnerTable, clothe.OwnerColumn),
+		)
+		fromV = sqlgraph.Neighbors(cl.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ClotheClient) Hooks() []Hook {
+	return c.hooks.Clothe
+}
+
+// Interceptors returns the client interceptors.
+func (c *ClotheClient) Interceptors() []Interceptor {
+	return c.inters.Clothe
+}
+
+func (c *ClotheClient) mutate(ctx context.Context, m *ClotheMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ClotheCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ClotheUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ClotheUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ClotheDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Clothe mutation op: %q", m.Op())
+	}
+}
+
+// GroupClient is a client for the Group schema.
+type GroupClient struct {
+	config
+}
+
+// NewGroupClient returns a client for the Group from the given config.
+func NewGroupClient(c config) *GroupClient {
+	return &GroupClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `group.Hooks(f(g(h())))`.
+func (c *GroupClient) Use(hooks ...Hook) {
+	c.hooks.Group = append(c.hooks.Group, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `group.Intercept(f(g(h())))`.
+func (c *GroupClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Group = append(c.inters.Group, interceptors...)
+}
+
+// Create returns a builder for creating a Group entity.
+func (c *GroupClient) Create() *GroupCreate {
+	mutation := newGroupMutation(c.config, OpCreate)
+	return &GroupCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Group entities.
+func (c *GroupClient) CreateBulk(builders ...*GroupCreate) *GroupCreateBulk {
+	return &GroupCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GroupClient) MapCreateBulk(slice any, setFunc func(*GroupCreate, int)) *GroupCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GroupCreateBulk{err: fmt.Errorf("calling to GroupClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GroupCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GroupCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Group.
+func (c *GroupClient) Update() *GroupUpdate {
+	mutation := newGroupMutation(c.config, OpUpdate)
+	return &GroupUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GroupClient) UpdateOne(gr *Group) *GroupUpdateOne {
+	mutation := newGroupMutation(c.config, OpUpdateOne, withGroup(gr))
+	return &GroupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GroupClient) UpdateOneID(id int) *GroupUpdateOne {
+	mutation := newGroupMutation(c.config, OpUpdateOne, withGroupID(id))
+	return &GroupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Group.
+func (c *GroupClient) Delete() *GroupDelete {
+	mutation := newGroupMutation(c.config, OpDelete)
+	return &GroupDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GroupClient) DeleteOne(gr *Group) *GroupDeleteOne {
+	return c.DeleteOneID(gr.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GroupClient) DeleteOneID(id int) *GroupDeleteOne {
+	builder := c.Delete().Where(group.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GroupDeleteOne{builder}
+}
+
+// Query returns a query builder for Group.
+func (c *GroupClient) Query() *GroupQuery {
+	return &GroupQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGroup},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Group entity by its id.
+func (c *GroupClient) Get(ctx context.Context, id int) (*Group, error) {
+	return c.Query().Where(group.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GroupClient) GetX(ctx context.Context, id int) *Group {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryPeoples queries the peoples edge of a Group.
+func (c *GroupClient) QueryPeoples(gr *Group) *PeopleQuery {
+	query := (&PeopleClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := gr.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(group.Table, group.FieldID, id),
+			sqlgraph.To(people.Table, people.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, group.PeoplesTable, group.PeoplesPrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(gr.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *GroupClient) Hooks() []Hook {
+	return c.hooks.Group
+}
+
+// Interceptors returns the client interceptors.
+func (c *GroupClient) Interceptors() []Interceptor {
+	return c.inters.Group
+}
+
+func (c *GroupClient) mutate(ctx context.Context, m *GroupMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GroupCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GroupUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GroupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GroupDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Group mutation op: %q", m.Op())
 	}
 }
 
@@ -305,6 +624,38 @@ func (c *PeopleClient) GetX(ctx context.Context, id int) *People {
 	return obj
 }
 
+// QueryClothes queries the clothes edge of a People.
+func (c *PeopleClient) QueryClothes(pe *People) *ClotheQuery {
+	query := (&ClotheClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := pe.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(people.Table, people.FieldID, id),
+			sqlgraph.To(clothe.Table, clothe.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, people.ClothesTable, people.ClothesColumn),
+		)
+		fromV = sqlgraph.Neighbors(pe.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryKind queries the kind edge of a People.
+func (c *PeopleClient) QueryKind(pe *People) *GroupQuery {
+	query := (&GroupClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := pe.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(people.Table, people.FieldID, id),
+			sqlgraph.To(group.Table, group.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, people.KindTable, people.KindPrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(pe.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *PeopleClient) Hooks() []Hook {
 	return c.hooks.People
@@ -333,9 +684,9 @@ func (c *PeopleClient) mutate(ctx context.Context, m *PeopleMutation) (Value, er
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		People []ent.Hook
+		Clothe, Group, People []ent.Hook
 	}
 	inters struct {
-		People []ent.Interceptor
+		Clothe, Group, People []ent.Interceptor
 	}
 )

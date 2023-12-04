@@ -6,5 +6,11 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// Clothe is the predicate function for clothe builders.
+type Clothe func(*sql.Selector)
+
+// Group is the predicate function for group builders.
+type Group func(*sql.Selector)
+
 // People is the predicate function for people builders.
 type People func(*sql.Selector)

@@ -8,6 +8,39 @@ import (
 )
 
 var (
+	// ClothesColumns holds the columns for the "clothes" table.
+	ClothesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "type", Type: field.TypeString},
+		{Name: "color", Type: field.TypeString},
+		{Name: "buy_date", Type: field.TypeTime},
+		{Name: "people_clothes", Type: field.TypeInt, Nullable: true},
+	}
+	// ClothesTable holds the schema information for the "clothes" table.
+	ClothesTable = &schema.Table{
+		Name:       "clothes",
+		Columns:    ClothesColumns,
+		PrimaryKey: []*schema.Column{ClothesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "clothes_peoples_clothes",
+				Columns:    []*schema.Column{ClothesColumns[4]},
+				RefColumns: []*schema.Column{PeoplesColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+	}
+	// GroupsColumns holds the columns for the "groups" table.
+	GroupsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "name", Type: field.TypeString},
+	}
+	// GroupsTable holds the schema information for the "groups" table.
+	GroupsTable = &schema.Table{
+		Name:       "groups",
+		Columns:    GroupsColumns,
+		PrimaryKey: []*schema.Column{GroupsColumns[0]},
+	}
 	// PeoplesColumns holds the columns for the "peoples" table.
 	PeoplesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -21,11 +54,42 @@ var (
 		Columns:    PeoplesColumns,
 		PrimaryKey: []*schema.Column{PeoplesColumns[0]},
 	}
+	// GroupPeoplesColumns holds the columns for the "group_peoples" table.
+	GroupPeoplesColumns = []*schema.Column{
+		{Name: "group_id", Type: field.TypeInt},
+		{Name: "people_id", Type: field.TypeInt},
+	}
+	// GroupPeoplesTable holds the schema information for the "group_peoples" table.
+	GroupPeoplesTable = &schema.Table{
+		Name:       "group_peoples",
+		Columns:    GroupPeoplesColumns,
+		PrimaryKey: []*schema.Column{GroupPeoplesColumns[0], GroupPeoplesColumns[1]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "group_peoples_group_id",
+				Columns:    []*schema.Column{GroupPeoplesColumns[0]},
+				RefColumns: []*schema.Column{GroupsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "group_peoples_people_id",
+				Columns:    []*schema.Column{GroupPeoplesColumns[1]},
+				RefColumns: []*schema.Column{PeoplesColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		ClothesTable,
+		GroupsTable,
 		PeoplesTable,
+		GroupPeoplesTable,
 	}
 )
 
 func init() {
+	ClothesTable.ForeignKeys[0].RefTable = PeoplesTable
+	GroupPeoplesTable.ForeignKeys[0].RefTable = GroupsTable
+	GroupPeoplesTable.ForeignKeys[1].RefTable = PeoplesTable
 }

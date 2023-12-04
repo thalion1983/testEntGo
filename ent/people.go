@@ -21,8 +21,40 @@ type People struct {
 	// LastName holds the value of the "last_name" field.
 	LastName string `json:"last_name,omitempty"`
 	// Age holds the value of the "age" field.
-	Age          int `json:"age,omitempty"`
+	Age int `json:"age,omitempty"`
+	// Edges holds the relations/edges for other nodes in the graph.
+	// The values are being populated by the PeopleQuery when eager-loading is set.
+	Edges        PeopleEdges `json:"edges"`
 	selectValues sql.SelectValues
+}
+
+// PeopleEdges holds the relations/edges for other nodes in the graph.
+type PeopleEdges struct {
+	// Clothes holds the value of the clothes edge.
+	Clothes []*Clothe `json:"clothes,omitempty"`
+	// Kind holds the value of the kind edge.
+	Kind []*Group `json:"kind,omitempty"`
+	// loadedTypes holds the information for reporting if a
+	// type was loaded (or requested) in eager-loading or not.
+	loadedTypes [2]bool
+}
+
+// ClothesOrErr returns the Clothes value or an error if the edge
+// was not loaded in eager-loading.
+func (e PeopleEdges) ClothesOrErr() ([]*Clothe, error) {
+	if e.loadedTypes[0] {
+		return e.Clothes, nil
+	}
+	return nil, &NotLoadedError{edge: "clothes"}
+}
+
+// KindOrErr returns the Kind value or an error if the edge
+// was not loaded in eager-loading.
+func (e PeopleEdges) KindOrErr() ([]*Group, error) {
+	if e.loadedTypes[1] {
+		return e.Kind, nil
+	}
+	return nil, &NotLoadedError{edge: "kind"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -84,6 +116,16 @@ func (pe *People) assignValues(columns []string, values []any) error {
 // This includes values selected through modifiers, order, etc.
 func (pe *People) Value(name string) (ent.Value, error) {
 	return pe.selectValues.Get(name)
+}
+
+// QueryClothes queries the "clothes" edge of the People entity.
+func (pe *People) QueryClothes() *ClotheQuery {
+	return NewPeopleClient(pe.config).QueryClothes(pe)
+}
+
+// QueryKind queries the "kind" edge of the People entity.
+func (pe *People) QueryKind() *GroupQuery {
+	return NewPeopleClient(pe.config).QueryKind(pe)
 }
 
 // Update returns a builder for updating this People.

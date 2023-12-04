@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"testEntGo/ent/clothe"
+	"testEntGo/ent/group"
 	"testEntGo/ent/people"
 
 	"entgo.io/ent"
@@ -73,6 +75,8 @@ var (
 func checkColumn(table, column string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
+			clothe.Table: clothe.ValidColumn,
+			group.Table:  group.ValidColumn,
 			people.Table: people.ValidColumn,
 		})
 	})

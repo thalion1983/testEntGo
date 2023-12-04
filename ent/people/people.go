@@ -4,6 +4,7 @@ package people
 
 import (
 	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
 )
 
 const (
@@ -17,8 +18,24 @@ const (
 	FieldLastName = "last_name"
 	// FieldAge holds the string denoting the age field in the database.
 	FieldAge = "age"
+	// EdgeClothes holds the string denoting the clothes edge name in mutations.
+	EdgeClothes = "clothes"
+	// EdgeKind holds the string denoting the kind edge name in mutations.
+	EdgeKind = "kind"
 	// Table holds the table name of the people in the database.
 	Table = "peoples"
+	// ClothesTable is the table that holds the clothes relation/edge.
+	ClothesTable = "clothes"
+	// ClothesInverseTable is the table name for the Clothe entity.
+	// It exists in this package in order to avoid circular dependency with the "clothe" package.
+	ClothesInverseTable = "clothes"
+	// ClothesColumn is the table column denoting the clothes relation/edge.
+	ClothesColumn = "people_clothes"
+	// KindTable is the table that holds the kind relation/edge. The primary key declared below.
+	KindTable = "group_peoples"
+	// KindInverseTable is the table name for the Group entity.
+	// It exists in this package in order to avoid circular dependency with the "group" package.
+	KindInverseTable = "groups"
 )
 
 // Columns holds all SQL columns for people fields.
@@ -28,6 +45,12 @@ var Columns = []string{
 	FieldLastName,
 	FieldAge,
 }
+
+var (
+	// KindPrimaryKey and KindColumn2 are the table columns denoting the
+	// primary key for the kind relation (M2M).
+	KindPrimaryKey = []string{"group_id", "people_id"}
+)
 
 // ValidColumn reports if the column name is valid (part of the table columns).
 func ValidColumn(column string) bool {
@@ -65,4 +88,46 @@ func ByLastName(opts ...sql.OrderTermOption) OrderOption {
 // ByAge orders the results by the age field.
 func ByAge(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAge, opts...).ToFunc()
+}
+
+// ByClothesCount orders the results by clothes count.
+func ByClothesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newClothesStep(), opts...)
+	}
+}
+
+// ByClothes orders the results by clothes terms.
+func ByClothes(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newClothesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByKindCount orders the results by kind count.
+func ByKindCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newKindStep(), opts...)
+	}
+}
+
+// ByKind orders the results by kind terms.
+func ByKind(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newKindStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+func newClothesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ClothesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ClothesTable, ClothesColumn),
+	)
+}
+func newKindStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(KindInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2M, true, KindTable, KindPrimaryKey...),
+	)
 }

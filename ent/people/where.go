@@ -6,6 +6,7 @@ import (
 	"testEntGo/ent/predicate"
 
 	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
 )
 
 // ID filters vertices based on their ID field.
@@ -236,6 +237,52 @@ func AgeLT(v int) predicate.People {
 // AgeLTE applies the LTE predicate on the "age" field.
 func AgeLTE(v int) predicate.People {
 	return predicate.People(sql.FieldLTE(FieldAge, v))
+}
+
+// HasClothes applies the HasEdge predicate on the "clothes" edge.
+func HasClothes() predicate.People {
+	return predicate.People(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, ClothesTable, ClothesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasClothesWith applies the HasEdge predicate on the "clothes" edge with a given conditions (other predicates).
+func HasClothesWith(preds ...predicate.Clothe) predicate.People {
+	return predicate.People(func(s *sql.Selector) {
+		step := newClothesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasKind applies the HasEdge predicate on the "kind" edge.
+func HasKind() predicate.People {
+	return predicate.People(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, KindTable, KindPrimaryKey...),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasKindWith applies the HasEdge predicate on the "kind" edge with a given conditions (other predicates).
+func HasKindWith(preds ...predicate.Group) predicate.People {
+	return predicate.People(func(s *sql.Selector) {
+		step := newKindStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
 }
 
 // And groups predicates with the AND operator between them.

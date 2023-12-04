@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"testEntGo/ent/clothe"
+	"testEntGo/ent/group"
 	"testEntGo/ent/people"
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -35,6 +37,36 @@ func (pc *PeopleCreate) SetLastName(s string) *PeopleCreate {
 func (pc *PeopleCreate) SetAge(i int) *PeopleCreate {
 	pc.mutation.SetAge(i)
 	return pc
+}
+
+// AddClotheIDs adds the "clothes" edge to the Clothe entity by IDs.
+func (pc *PeopleCreate) AddClotheIDs(ids ...int) *PeopleCreate {
+	pc.mutation.AddClotheIDs(ids...)
+	return pc
+}
+
+// AddClothes adds the "clothes" edges to the Clothe entity.
+func (pc *PeopleCreate) AddClothes(c ...*Clothe) *PeopleCreate {
+	ids := make([]int, len(c))
+	for i := range c {
+		ids[i] = c[i].ID
+	}
+	return pc.AddClotheIDs(ids...)
+}
+
+// AddKindIDs adds the "kind" edge to the Group entity by IDs.
+func (pc *PeopleCreate) AddKindIDs(ids ...int) *PeopleCreate {
+	pc.mutation.AddKindIDs(ids...)
+	return pc
+}
+
+// AddKind adds the "kind" edges to the Group entity.
+func (pc *PeopleCreate) AddKind(g ...*Group) *PeopleCreate {
+	ids := make([]int, len(g))
+	for i := range g {
+		ids[i] = g[i].ID
+	}
+	return pc.AddKindIDs(ids...)
 }
 
 // Mutation returns the PeopleMutation object of the builder.
@@ -122,6 +154,38 @@ func (pc *PeopleCreate) createSpec() (*People, *sqlgraph.CreateSpec) {
 	if value, ok := pc.mutation.Age(); ok {
 		_spec.SetField(people.FieldAge, field.TypeInt, value)
 		_node.Age = value
+	}
+	if nodes := pc.mutation.ClothesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   people.ClothesTable,
+			Columns: []string{people.ClothesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(clothe.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := pc.mutation.KindIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   people.KindTable,
+			Columns: people.KindPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(group.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec
 }

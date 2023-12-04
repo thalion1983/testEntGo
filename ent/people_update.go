@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"testEntGo/ent/clothe"
+	"testEntGo/ent/group"
 	"testEntGo/ent/people"
 	"testEntGo/ent/predicate"
 
@@ -76,9 +78,81 @@ func (pu *PeopleUpdate) AddAge(i int) *PeopleUpdate {
 	return pu
 }
 
+// AddClotheIDs adds the "clothes" edge to the Clothe entity by IDs.
+func (pu *PeopleUpdate) AddClotheIDs(ids ...int) *PeopleUpdate {
+	pu.mutation.AddClotheIDs(ids...)
+	return pu
+}
+
+// AddClothes adds the "clothes" edges to the Clothe entity.
+func (pu *PeopleUpdate) AddClothes(c ...*Clothe) *PeopleUpdate {
+	ids := make([]int, len(c))
+	for i := range c {
+		ids[i] = c[i].ID
+	}
+	return pu.AddClotheIDs(ids...)
+}
+
+// AddKindIDs adds the "kind" edge to the Group entity by IDs.
+func (pu *PeopleUpdate) AddKindIDs(ids ...int) *PeopleUpdate {
+	pu.mutation.AddKindIDs(ids...)
+	return pu
+}
+
+// AddKind adds the "kind" edges to the Group entity.
+func (pu *PeopleUpdate) AddKind(g ...*Group) *PeopleUpdate {
+	ids := make([]int, len(g))
+	for i := range g {
+		ids[i] = g[i].ID
+	}
+	return pu.AddKindIDs(ids...)
+}
+
 // Mutation returns the PeopleMutation object of the builder.
 func (pu *PeopleUpdate) Mutation() *PeopleMutation {
 	return pu.mutation
+}
+
+// ClearClothes clears all "clothes" edges to the Clothe entity.
+func (pu *PeopleUpdate) ClearClothes() *PeopleUpdate {
+	pu.mutation.ClearClothes()
+	return pu
+}
+
+// RemoveClotheIDs removes the "clothes" edge to Clothe entities by IDs.
+func (pu *PeopleUpdate) RemoveClotheIDs(ids ...int) *PeopleUpdate {
+	pu.mutation.RemoveClotheIDs(ids...)
+	return pu
+}
+
+// RemoveClothes removes "clothes" edges to Clothe entities.
+func (pu *PeopleUpdate) RemoveClothes(c ...*Clothe) *PeopleUpdate {
+	ids := make([]int, len(c))
+	for i := range c {
+		ids[i] = c[i].ID
+	}
+	return pu.RemoveClotheIDs(ids...)
+}
+
+// ClearKind clears all "kind" edges to the Group entity.
+func (pu *PeopleUpdate) ClearKind() *PeopleUpdate {
+	pu.mutation.ClearKind()
+	return pu
+}
+
+// RemoveKindIDs removes the "kind" edge to Group entities by IDs.
+func (pu *PeopleUpdate) RemoveKindIDs(ids ...int) *PeopleUpdate {
+	pu.mutation.RemoveKindIDs(ids...)
+	return pu
+}
+
+// RemoveKind removes "kind" edges to Group entities.
+func (pu *PeopleUpdate) RemoveKind(g ...*Group) *PeopleUpdate {
+	ids := make([]int, len(g))
+	for i := range g {
+		ids[i] = g[i].ID
+	}
+	return pu.RemoveKindIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -141,6 +215,96 @@ func (pu *PeopleUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	}
 	if value, ok := pu.mutation.AddedAge(); ok {
 		_spec.AddField(people.FieldAge, field.TypeInt, value)
+	}
+	if pu.mutation.ClothesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   people.ClothesTable,
+			Columns: []string{people.ClothesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(clothe.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := pu.mutation.RemovedClothesIDs(); len(nodes) > 0 && !pu.mutation.ClothesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   people.ClothesTable,
+			Columns: []string{people.ClothesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(clothe.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := pu.mutation.ClothesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   people.ClothesTable,
+			Columns: []string{people.ClothesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(clothe.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if pu.mutation.KindCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   people.KindTable,
+			Columns: people.KindPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(group.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := pu.mutation.RemovedKindIDs(); len(nodes) > 0 && !pu.mutation.KindCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   people.KindTable,
+			Columns: people.KindPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(group.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := pu.mutation.KindIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   people.KindTable,
+			Columns: people.KindPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(group.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	if n, err = sqlgraph.UpdateNodes(ctx, pu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -211,9 +375,81 @@ func (puo *PeopleUpdateOne) AddAge(i int) *PeopleUpdateOne {
 	return puo
 }
 
+// AddClotheIDs adds the "clothes" edge to the Clothe entity by IDs.
+func (puo *PeopleUpdateOne) AddClotheIDs(ids ...int) *PeopleUpdateOne {
+	puo.mutation.AddClotheIDs(ids...)
+	return puo
+}
+
+// AddClothes adds the "clothes" edges to the Clothe entity.
+func (puo *PeopleUpdateOne) AddClothes(c ...*Clothe) *PeopleUpdateOne {
+	ids := make([]int, len(c))
+	for i := range c {
+		ids[i] = c[i].ID
+	}
+	return puo.AddClotheIDs(ids...)
+}
+
+// AddKindIDs adds the "kind" edge to the Group entity by IDs.
+func (puo *PeopleUpdateOne) AddKindIDs(ids ...int) *PeopleUpdateOne {
+	puo.mutation.AddKindIDs(ids...)
+	return puo
+}
+
+// AddKind adds the "kind" edges to the Group entity.
+func (puo *PeopleUpdateOne) AddKind(g ...*Group) *PeopleUpdateOne {
+	ids := make([]int, len(g))
+	for i := range g {
+		ids[i] = g[i].ID
+	}
+	return puo.AddKindIDs(ids...)
+}
+
 // Mutation returns the PeopleMutation object of the builder.
 func (puo *PeopleUpdateOne) Mutation() *PeopleMutation {
 	return puo.mutation
+}
+
+// ClearClothes clears all "clothes" edges to the Clothe entity.
+func (puo *PeopleUpdateOne) ClearClothes() *PeopleUpdateOne {
+	puo.mutation.ClearClothes()
+	return puo
+}
+
+// RemoveClotheIDs removes the "clothes" edge to Clothe entities by IDs.
+func (puo *PeopleUpdateOne) RemoveClotheIDs(ids ...int) *PeopleUpdateOne {
+	puo.mutation.RemoveClotheIDs(ids...)
+	return puo
+}
+
+// RemoveClothes removes "clothes" edges to Clothe entities.
+func (puo *PeopleUpdateOne) RemoveClothes(c ...*Clothe) *PeopleUpdateOne {
+	ids := make([]int, len(c))
+	for i := range c {
+		ids[i] = c[i].ID
+	}
+	return puo.RemoveClotheIDs(ids...)
+}
+
+// ClearKind clears all "kind" edges to the Group entity.
+func (puo *PeopleUpdateOne) ClearKind() *PeopleUpdateOne {
+	puo.mutation.ClearKind()
+	return puo
+}
+
+// RemoveKindIDs removes the "kind" edge to Group entities by IDs.
+func (puo *PeopleUpdateOne) RemoveKindIDs(ids ...int) *PeopleUpdateOne {
+	puo.mutation.RemoveKindIDs(ids...)
+	return puo
+}
+
+// RemoveKind removes "kind" edges to Group entities.
+func (puo *PeopleUpdateOne) RemoveKind(g ...*Group) *PeopleUpdateOne {
+	ids := make([]int, len(g))
+	for i := range g {
+		ids[i] = g[i].ID
+	}
+	return puo.RemoveKindIDs(ids...)
 }
 
 // Where appends a list predicates to the PeopleUpdate builder.
@@ -306,6 +542,96 @@ func (puo *PeopleUpdateOne) sqlSave(ctx context.Context) (_node *People, err err
 	}
 	if value, ok := puo.mutation.AddedAge(); ok {
 		_spec.AddField(people.FieldAge, field.TypeInt, value)
+	}
+	if puo.mutation.ClothesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   people.ClothesTable,
+			Columns: []string{people.ClothesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(clothe.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := puo.mutation.RemovedClothesIDs(); len(nodes) > 0 && !puo.mutation.ClothesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   people.ClothesTable,
+			Columns: []string{people.ClothesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(clothe.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := puo.mutation.ClothesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   people.ClothesTable,
+			Columns: []string{people.ClothesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(clothe.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if puo.mutation.KindCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   people.KindTable,
+			Columns: people.KindPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(group.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := puo.mutation.RemovedKindIDs(); len(nodes) > 0 && !puo.mutation.KindCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   people.KindTable,
+			Columns: people.KindPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(group.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := puo.mutation.KindIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   people.KindTable,
+			Columns: people.KindPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(group.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	_node = &People{config: puo.config}
 	_spec.Assign = _node.assignValues

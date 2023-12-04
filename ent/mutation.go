@@ -7,8 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"testEntGo/ent/clothe"
+	"testEntGo/ent/group"
 	"testEntGo/ent/people"
 	"testEntGo/ent/predicate"
+	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
@@ -23,23 +26,951 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
+	TypeClothe = "Clothe"
+	TypeGroup  = "Group"
 	TypePeople = "People"
 )
 
-// PeopleMutation represents an operation that mutates the People nodes in the graph.
-type PeopleMutation struct {
+// ClotheMutation represents an operation that mutates the Clothe nodes in the graph.
+type ClotheMutation struct {
 	config
 	op            Op
 	typ           string
 	id            *int
-	name          *string
-	last_name     *string
-	age           *int
-	addage        *int
+	_type         *string
+	color         *string
+	buy_date      *time.Time
 	clearedFields map[string]struct{}
+	owner         *int
+	clearedowner  bool
 	done          bool
-	oldValue      func(context.Context) (*People, error)
-	predicates    []predicate.People
+	oldValue      func(context.Context) (*Clothe, error)
+	predicates    []predicate.Clothe
+}
+
+var _ ent.Mutation = (*ClotheMutation)(nil)
+
+// clotheOption allows management of the mutation configuration using functional options.
+type clotheOption func(*ClotheMutation)
+
+// newClotheMutation creates new mutation for the Clothe entity.
+func newClotheMutation(c config, op Op, opts ...clotheOption) *ClotheMutation {
+	m := &ClotheMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeClothe,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withClotheID sets the ID field of the mutation.
+func withClotheID(id int) clotheOption {
+	return func(m *ClotheMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Clothe
+		)
+		m.oldValue = func(ctx context.Context) (*Clothe, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Clothe.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withClothe sets the old Clothe of the mutation.
+func withClothe(node *Clothe) clotheOption {
+	return func(m *ClotheMutation) {
+		m.oldValue = func(context.Context) (*Clothe, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ClotheMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ClotheMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ClotheMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ClotheMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Clothe.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetType sets the "type" field.
+func (m *ClotheMutation) SetType(s string) {
+	m._type = &s
+}
+
+// GetType returns the value of the "type" field in the mutation.
+func (m *ClotheMutation) GetType() (r string, exists bool) {
+	v := m._type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldType returns the old "type" field's value of the Clothe entity.
+// If the Clothe object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ClotheMutation) OldType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldType: %w", err)
+	}
+	return oldValue.Type, nil
+}
+
+// ResetType resets all changes to the "type" field.
+func (m *ClotheMutation) ResetType() {
+	m._type = nil
+}
+
+// SetColor sets the "color" field.
+func (m *ClotheMutation) SetColor(s string) {
+	m.color = &s
+}
+
+// Color returns the value of the "color" field in the mutation.
+func (m *ClotheMutation) Color() (r string, exists bool) {
+	v := m.color
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldColor returns the old "color" field's value of the Clothe entity.
+// If the Clothe object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ClotheMutation) OldColor(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldColor is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldColor requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldColor: %w", err)
+	}
+	return oldValue.Color, nil
+}
+
+// ResetColor resets all changes to the "color" field.
+func (m *ClotheMutation) ResetColor() {
+	m.color = nil
+}
+
+// SetBuyDate sets the "buy_date" field.
+func (m *ClotheMutation) SetBuyDate(t time.Time) {
+	m.buy_date = &t
+}
+
+// BuyDate returns the value of the "buy_date" field in the mutation.
+func (m *ClotheMutation) BuyDate() (r time.Time, exists bool) {
+	v := m.buy_date
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBuyDate returns the old "buy_date" field's value of the Clothe entity.
+// If the Clothe object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ClotheMutation) OldBuyDate(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBuyDate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBuyDate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBuyDate: %w", err)
+	}
+	return oldValue.BuyDate, nil
+}
+
+// ResetBuyDate resets all changes to the "buy_date" field.
+func (m *ClotheMutation) ResetBuyDate() {
+	m.buy_date = nil
+}
+
+// SetOwnerID sets the "owner" edge to the People entity by id.
+func (m *ClotheMutation) SetOwnerID(id int) {
+	m.owner = &id
+}
+
+// ClearOwner clears the "owner" edge to the People entity.
+func (m *ClotheMutation) ClearOwner() {
+	m.clearedowner = true
+}
+
+// OwnerCleared reports if the "owner" edge to the People entity was cleared.
+func (m *ClotheMutation) OwnerCleared() bool {
+	return m.clearedowner
+}
+
+// OwnerID returns the "owner" edge ID in the mutation.
+func (m *ClotheMutation) OwnerID() (id int, exists bool) {
+	if m.owner != nil {
+		return *m.owner, true
+	}
+	return
+}
+
+// OwnerIDs returns the "owner" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// OwnerID instead. It exists only for internal usage by the builders.
+func (m *ClotheMutation) OwnerIDs() (ids []int) {
+	if id := m.owner; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetOwner resets all changes to the "owner" edge.
+func (m *ClotheMutation) ResetOwner() {
+	m.owner = nil
+	m.clearedowner = false
+}
+
+// Where appends a list predicates to the ClotheMutation builder.
+func (m *ClotheMutation) Where(ps ...predicate.Clothe) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ClotheMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ClotheMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Clothe, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ClotheMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ClotheMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Clothe).
+func (m *ClotheMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ClotheMutation) Fields() []string {
+	fields := make([]string, 0, 3)
+	if m._type != nil {
+		fields = append(fields, clothe.FieldType)
+	}
+	if m.color != nil {
+		fields = append(fields, clothe.FieldColor)
+	}
+	if m.buy_date != nil {
+		fields = append(fields, clothe.FieldBuyDate)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ClotheMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case clothe.FieldType:
+		return m.GetType()
+	case clothe.FieldColor:
+		return m.Color()
+	case clothe.FieldBuyDate:
+		return m.BuyDate()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ClotheMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case clothe.FieldType:
+		return m.OldType(ctx)
+	case clothe.FieldColor:
+		return m.OldColor(ctx)
+	case clothe.FieldBuyDate:
+		return m.OldBuyDate(ctx)
+	}
+	return nil, fmt.Errorf("unknown Clothe field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ClotheMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case clothe.FieldType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetType(v)
+		return nil
+	case clothe.FieldColor:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetColor(v)
+		return nil
+	case clothe.FieldBuyDate:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBuyDate(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Clothe field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ClotheMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ClotheMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ClotheMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Clothe numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ClotheMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ClotheMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ClotheMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown Clothe nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ClotheMutation) ResetField(name string) error {
+	switch name {
+	case clothe.FieldType:
+		m.ResetType()
+		return nil
+	case clothe.FieldColor:
+		m.ResetColor()
+		return nil
+	case clothe.FieldBuyDate:
+		m.ResetBuyDate()
+		return nil
+	}
+	return fmt.Errorf("unknown Clothe field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ClotheMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.owner != nil {
+		edges = append(edges, clothe.EdgeOwner)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ClotheMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case clothe.EdgeOwner:
+		if id := m.owner; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ClotheMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ClotheMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ClotheMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedowner {
+		edges = append(edges, clothe.EdgeOwner)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ClotheMutation) EdgeCleared(name string) bool {
+	switch name {
+	case clothe.EdgeOwner:
+		return m.clearedowner
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ClotheMutation) ClearEdge(name string) error {
+	switch name {
+	case clothe.EdgeOwner:
+		m.ClearOwner()
+		return nil
+	}
+	return fmt.Errorf("unknown Clothe unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ClotheMutation) ResetEdge(name string) error {
+	switch name {
+	case clothe.EdgeOwner:
+		m.ResetOwner()
+		return nil
+	}
+	return fmt.Errorf("unknown Clothe edge %s", name)
+}
+
+// GroupMutation represents an operation that mutates the Group nodes in the graph.
+type GroupMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *int
+	name           *string
+	clearedFields  map[string]struct{}
+	peoples        map[int]struct{}
+	removedpeoples map[int]struct{}
+	clearedpeoples bool
+	done           bool
+	oldValue       func(context.Context) (*Group, error)
+	predicates     []predicate.Group
+}
+
+var _ ent.Mutation = (*GroupMutation)(nil)
+
+// groupOption allows management of the mutation configuration using functional options.
+type groupOption func(*GroupMutation)
+
+// newGroupMutation creates new mutation for the Group entity.
+func newGroupMutation(c config, op Op, opts ...groupOption) *GroupMutation {
+	m := &GroupMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeGroup,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withGroupID sets the ID field of the mutation.
+func withGroupID(id int) groupOption {
+	return func(m *GroupMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Group
+		)
+		m.oldValue = func(ctx context.Context) (*Group, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Group.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withGroup sets the old Group of the mutation.
+func withGroup(node *Group) groupOption {
+	return func(m *GroupMutation) {
+		m.oldValue = func(context.Context) (*Group, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m GroupMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m GroupMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *GroupMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *GroupMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Group.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetName sets the "name" field.
+func (m *GroupMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *GroupMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *GroupMutation) ResetName() {
+	m.name = nil
+}
+
+// AddPeopleIDs adds the "peoples" edge to the People entity by ids.
+func (m *GroupMutation) AddPeopleIDs(ids ...int) {
+	if m.peoples == nil {
+		m.peoples = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.peoples[ids[i]] = struct{}{}
+	}
+}
+
+// ClearPeoples clears the "peoples" edge to the People entity.
+func (m *GroupMutation) ClearPeoples() {
+	m.clearedpeoples = true
+}
+
+// PeoplesCleared reports if the "peoples" edge to the People entity was cleared.
+func (m *GroupMutation) PeoplesCleared() bool {
+	return m.clearedpeoples
+}
+
+// RemovePeopleIDs removes the "peoples" edge to the People entity by IDs.
+func (m *GroupMutation) RemovePeopleIDs(ids ...int) {
+	if m.removedpeoples == nil {
+		m.removedpeoples = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.peoples, ids[i])
+		m.removedpeoples[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedPeoples returns the removed IDs of the "peoples" edge to the People entity.
+func (m *GroupMutation) RemovedPeoplesIDs() (ids []int) {
+	for id := range m.removedpeoples {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// PeoplesIDs returns the "peoples" edge IDs in the mutation.
+func (m *GroupMutation) PeoplesIDs() (ids []int) {
+	for id := range m.peoples {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetPeoples resets all changes to the "peoples" edge.
+func (m *GroupMutation) ResetPeoples() {
+	m.peoples = nil
+	m.clearedpeoples = false
+	m.removedpeoples = nil
+}
+
+// Where appends a list predicates to the GroupMutation builder.
+func (m *GroupMutation) Where(ps ...predicate.Group) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the GroupMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *GroupMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Group, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *GroupMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *GroupMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Group).
+func (m *GroupMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *GroupMutation) Fields() []string {
+	fields := make([]string, 0, 1)
+	if m.name != nil {
+		fields = append(fields, group.FieldName)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *GroupMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case group.FieldName:
+		return m.Name()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case group.FieldName:
+		return m.OldName(ctx)
+	}
+	return nil, fmt.Errorf("unknown Group field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *GroupMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case group.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Group field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *GroupMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *GroupMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *GroupMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Group numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *GroupMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *GroupMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *GroupMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown Group nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *GroupMutation) ResetField(name string) error {
+	switch name {
+	case group.FieldName:
+		m.ResetName()
+		return nil
+	}
+	return fmt.Errorf("unknown Group field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *GroupMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.peoples != nil {
+		edges = append(edges, group.EdgePeoples)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *GroupMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case group.EdgePeoples:
+		ids := make([]ent.Value, 0, len(m.peoples))
+		for id := range m.peoples {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *GroupMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.removedpeoples != nil {
+		edges = append(edges, group.EdgePeoples)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *GroupMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case group.EdgePeoples:
+		ids := make([]ent.Value, 0, len(m.removedpeoples))
+		for id := range m.removedpeoples {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *GroupMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedpeoples {
+		edges = append(edges, group.EdgePeoples)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *GroupMutation) EdgeCleared(name string) bool {
+	switch name {
+	case group.EdgePeoples:
+		return m.clearedpeoples
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *GroupMutation) ClearEdge(name string) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Group unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *GroupMutation) ResetEdge(name string) error {
+	switch name {
+	case group.EdgePeoples:
+		m.ResetPeoples()
+		return nil
+	}
+	return fmt.Errorf("unknown Group edge %s", name)
+}
+
+// PeopleMutation represents an operation that mutates the People nodes in the graph.
+type PeopleMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *int
+	name           *string
+	last_name      *string
+	age            *int
+	addage         *int
+	clearedFields  map[string]struct{}
+	clothes        map[int]struct{}
+	removedclothes map[int]struct{}
+	clearedclothes bool
+	kind           map[int]struct{}
+	removedkind    map[int]struct{}
+	clearedkind    bool
+	done           bool
+	oldValue       func(context.Context) (*People, error)
+	predicates     []predicate.People
 }
 
 var _ ent.Mutation = (*PeopleMutation)(nil)
@@ -268,6 +1199,114 @@ func (m *PeopleMutation) ResetAge() {
 	m.addage = nil
 }
 
+// AddClotheIDs adds the "clothes" edge to the Clothe entity by ids.
+func (m *PeopleMutation) AddClotheIDs(ids ...int) {
+	if m.clothes == nil {
+		m.clothes = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.clothes[ids[i]] = struct{}{}
+	}
+}
+
+// ClearClothes clears the "clothes" edge to the Clothe entity.
+func (m *PeopleMutation) ClearClothes() {
+	m.clearedclothes = true
+}
+
+// ClothesCleared reports if the "clothes" edge to the Clothe entity was cleared.
+func (m *PeopleMutation) ClothesCleared() bool {
+	return m.clearedclothes
+}
+
+// RemoveClotheIDs removes the "clothes" edge to the Clothe entity by IDs.
+func (m *PeopleMutation) RemoveClotheIDs(ids ...int) {
+	if m.removedclothes == nil {
+		m.removedclothes = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.clothes, ids[i])
+		m.removedclothes[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedClothes returns the removed IDs of the "clothes" edge to the Clothe entity.
+func (m *PeopleMutation) RemovedClothesIDs() (ids []int) {
+	for id := range m.removedclothes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ClothesIDs returns the "clothes" edge IDs in the mutation.
+func (m *PeopleMutation) ClothesIDs() (ids []int) {
+	for id := range m.clothes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetClothes resets all changes to the "clothes" edge.
+func (m *PeopleMutation) ResetClothes() {
+	m.clothes = nil
+	m.clearedclothes = false
+	m.removedclothes = nil
+}
+
+// AddKindIDs adds the "kind" edge to the Group entity by ids.
+func (m *PeopleMutation) AddKindIDs(ids ...int) {
+	if m.kind == nil {
+		m.kind = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.kind[ids[i]] = struct{}{}
+	}
+}
+
+// ClearKind clears the "kind" edge to the Group entity.
+func (m *PeopleMutation) ClearKind() {
+	m.clearedkind = true
+}
+
+// KindCleared reports if the "kind" edge to the Group entity was cleared.
+func (m *PeopleMutation) KindCleared() bool {
+	return m.clearedkind
+}
+
+// RemoveKindIDs removes the "kind" edge to the Group entity by IDs.
+func (m *PeopleMutation) RemoveKindIDs(ids ...int) {
+	if m.removedkind == nil {
+		m.removedkind = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.kind, ids[i])
+		m.removedkind[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedKind returns the removed IDs of the "kind" edge to the Group entity.
+func (m *PeopleMutation) RemovedKindIDs() (ids []int) {
+	for id := range m.removedkind {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// KindIDs returns the "kind" edge IDs in the mutation.
+func (m *PeopleMutation) KindIDs() (ids []int) {
+	for id := range m.kind {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetKind resets all changes to the "kind" edge.
+func (m *PeopleMutation) ResetKind() {
+	m.kind = nil
+	m.clearedkind = false
+	m.removedkind = nil
+}
+
 // Where appends a list predicates to the PeopleMutation builder.
 func (m *PeopleMutation) Where(ps ...predicate.People) {
 	m.predicates = append(m.predicates, ps...)
@@ -450,48 +1489,110 @@ func (m *PeopleMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *PeopleMutation) AddedEdges() []string {
-	edges := make([]string, 0, 0)
+	edges := make([]string, 0, 2)
+	if m.clothes != nil {
+		edges = append(edges, people.EdgeClothes)
+	}
+	if m.kind != nil {
+		edges = append(edges, people.EdgeKind)
+	}
 	return edges
 }
 
 // AddedIDs returns all IDs (to other nodes) that were added for the given edge
 // name in this mutation.
 func (m *PeopleMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case people.EdgeClothes:
+		ids := make([]ent.Value, 0, len(m.clothes))
+		for id := range m.clothes {
+			ids = append(ids, id)
+		}
+		return ids
+	case people.EdgeKind:
+		ids := make([]ent.Value, 0, len(m.kind))
+		for id := range m.kind {
+			ids = append(ids, id)
+		}
+		return ids
+	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *PeopleMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 0)
+	edges := make([]string, 0, 2)
+	if m.removedclothes != nil {
+		edges = append(edges, people.EdgeClothes)
+	}
+	if m.removedkind != nil {
+		edges = append(edges, people.EdgeKind)
+	}
 	return edges
 }
 
 // RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
 // the given name in this mutation.
 func (m *PeopleMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case people.EdgeClothes:
+		ids := make([]ent.Value, 0, len(m.removedclothes))
+		for id := range m.removedclothes {
+			ids = append(ids, id)
+		}
+		return ids
+	case people.EdgeKind:
+		ids := make([]ent.Value, 0, len(m.removedkind))
+		for id := range m.removedkind {
+			ids = append(ids, id)
+		}
+		return ids
+	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *PeopleMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 0)
+	edges := make([]string, 0, 2)
+	if m.clearedclothes {
+		edges = append(edges, people.EdgeClothes)
+	}
+	if m.clearedkind {
+		edges = append(edges, people.EdgeKind)
+	}
 	return edges
 }
 
 // EdgeCleared returns a boolean which indicates if the edge with the given name
 // was cleared in this mutation.
 func (m *PeopleMutation) EdgeCleared(name string) bool {
+	switch name {
+	case people.EdgeClothes:
+		return m.clearedclothes
+	case people.EdgeKind:
+		return m.clearedkind
+	}
 	return false
 }
 
 // ClearEdge clears the value of the edge with the given name. It returns an error
 // if that edge is not defined in the schema.
 func (m *PeopleMutation) ClearEdge(name string) error {
+	switch name {
+	}
 	return fmt.Errorf("unknown People unique edge %s", name)
 }
 
 // ResetEdge resets all changes to the edge with the given name in this mutation.
 // It returns an error if the edge is not defined in the schema.
 func (m *PeopleMutation) ResetEdge(name string) error {
+	switch name {
+	case people.EdgeClothes:
+		m.ResetClothes()
+		return nil
+	case people.EdgeKind:
+		m.ResetKind()
+		return nil
+	}
 	return fmt.Errorf("unknown People edge %s", name)
 }

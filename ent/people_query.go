@@ -4,8 +4,11 @@ package ent
 
 import (
 	"context"
+	"database/sql/driver"
 	"fmt"
 	"math"
+	"testEntGo/ent/clothe"
+	"testEntGo/ent/group"
 	"testEntGo/ent/people"
 	"testEntGo/ent/predicate"
 
@@ -17,10 +20,12 @@ import (
 // PeopleQuery is the builder for querying People entities.
 type PeopleQuery struct {
 	config
-	ctx        *QueryContext
-	order      []people.OrderOption
-	inters     []Interceptor
-	predicates []predicate.People
+	ctx         *QueryContext
+	order       []people.OrderOption
+	inters      []Interceptor
+	predicates  []predicate.People
+	withClothes *ClotheQuery
+	withKind    *GroupQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -55,6 +60,50 @@ func (pq *PeopleQuery) Unique(unique bool) *PeopleQuery {
 func (pq *PeopleQuery) Order(o ...people.OrderOption) *PeopleQuery {
 	pq.order = append(pq.order, o...)
 	return pq
+}
+
+// QueryClothes chains the current query on the "clothes" edge.
+func (pq *PeopleQuery) QueryClothes() *ClotheQuery {
+	query := (&ClotheClient{config: pq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := pq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := pq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(people.Table, people.FieldID, selector),
+			sqlgraph.To(clothe.Table, clothe.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, people.ClothesTable, people.ClothesColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(pq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryKind chains the current query on the "kind" edge.
+func (pq *PeopleQuery) QueryKind() *GroupQuery {
+	query := (&GroupClient{config: pq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := pq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := pq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(people.Table, people.FieldID, selector),
+			sqlgraph.To(group.Table, group.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, people.KindTable, people.KindPrimaryKey...),
+		)
+		fromU = sqlgraph.SetNeighbors(pq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
 }
 
 // First returns the first People entity from the query.
@@ -244,15 +293,39 @@ func (pq *PeopleQuery) Clone() *PeopleQuery {
 		return nil
 	}
 	return &PeopleQuery{
-		config:     pq.config,
-		ctx:        pq.ctx.Clone(),
-		order:      append([]people.OrderOption{}, pq.order...),
-		inters:     append([]Interceptor{}, pq.inters...),
-		predicates: append([]predicate.People{}, pq.predicates...),
+		config:      pq.config,
+		ctx:         pq.ctx.Clone(),
+		order:       append([]people.OrderOption{}, pq.order...),
+		inters:      append([]Interceptor{}, pq.inters...),
+		predicates:  append([]predicate.People{}, pq.predicates...),
+		withClothes: pq.withClothes.Clone(),
+		withKind:    pq.withKind.Clone(),
 		// clone intermediate query.
 		sql:  pq.sql.Clone(),
 		path: pq.path,
 	}
+}
+
+// WithClothes tells the query-builder to eager-load the nodes that are connected to
+// the "clothes" edge. The optional arguments are used to configure the query builder of the edge.
+func (pq *PeopleQuery) WithClothes(opts ...func(*ClotheQuery)) *PeopleQuery {
+	query := (&ClotheClient{config: pq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	pq.withClothes = query
+	return pq
+}
+
+// WithKind tells the query-builder to eager-load the nodes that are connected to
+// the "kind" edge. The optional arguments are used to configure the query builder of the edge.
+func (pq *PeopleQuery) WithKind(opts ...func(*GroupQuery)) *PeopleQuery {
+	query := (&GroupClient{config: pq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	pq.withKind = query
+	return pq
 }
 
 // GroupBy is used to group vertices by one or more fields/columns.
@@ -331,8 +404,12 @@ func (pq *PeopleQuery) prepareQuery(ctx context.Context) error {
 
 func (pq *PeopleQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*People, error) {
 	var (
-		nodes = []*People{}
-		_spec = pq.querySpec()
+		nodes       = []*People{}
+		_spec       = pq.querySpec()
+		loadedTypes = [2]bool{
+			pq.withClothes != nil,
+			pq.withKind != nil,
+		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
 		return (*People).scanValues(nil, columns)
@@ -340,6 +417,7 @@ func (pq *PeopleQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Peopl
 	_spec.Assign = func(columns []string, values []any) error {
 		node := &People{config: pq.config}
 		nodes = append(nodes, node)
+		node.Edges.loadedTypes = loadedTypes
 		return node.assignValues(columns, values)
 	}
 	for i := range hooks {
@@ -351,7 +429,114 @@ func (pq *PeopleQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Peopl
 	if len(nodes) == 0 {
 		return nodes, nil
 	}
+	if query := pq.withClothes; query != nil {
+		if err := pq.loadClothes(ctx, query, nodes,
+			func(n *People) { n.Edges.Clothes = []*Clothe{} },
+			func(n *People, e *Clothe) { n.Edges.Clothes = append(n.Edges.Clothes, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := pq.withKind; query != nil {
+		if err := pq.loadKind(ctx, query, nodes,
+			func(n *People) { n.Edges.Kind = []*Group{} },
+			func(n *People, e *Group) { n.Edges.Kind = append(n.Edges.Kind, e) }); err != nil {
+			return nil, err
+		}
+	}
 	return nodes, nil
+}
+
+func (pq *PeopleQuery) loadClothes(ctx context.Context, query *ClotheQuery, nodes []*People, init func(*People), assign func(*People, *Clothe)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int]*People)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	query.withFKs = true
+	query.Where(predicate.Clothe(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(people.ClothesColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.people_clothes
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "people_clothes" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "people_clothes" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (pq *PeopleQuery) loadKind(ctx context.Context, query *GroupQuery, nodes []*People, init func(*People), assign func(*People, *Group)) error {
+	edgeIDs := make([]driver.Value, len(nodes))
+	byID := make(map[int]*People)
+	nids := make(map[int]map[*People]struct{})
+	for i, node := range nodes {
+		edgeIDs[i] = node.ID
+		byID[node.ID] = node
+		if init != nil {
+			init(node)
+		}
+	}
+	query.Where(func(s *sql.Selector) {
+		joinT := sql.Table(people.KindTable)
+		s.Join(joinT).On(s.C(group.FieldID), joinT.C(people.KindPrimaryKey[0]))
+		s.Where(sql.InValues(joinT.C(people.KindPrimaryKey[1]), edgeIDs...))
+		columns := s.SelectedColumns()
+		s.Select(joinT.C(people.KindPrimaryKey[1]))
+		s.AppendSelect(columns...)
+		s.SetDistinct(false)
+	})
+	if err := query.prepareQuery(ctx); err != nil {
+		return err
+	}
+	qr := QuerierFunc(func(ctx context.Context, q Query) (Value, error) {
+		return query.sqlAll(ctx, func(_ context.Context, spec *sqlgraph.QuerySpec) {
+			assign := spec.Assign
+			values := spec.ScanValues
+			spec.ScanValues = func(columns []string) ([]any, error) {
+				values, err := values(columns[1:])
+				if err != nil {
+					return nil, err
+				}
+				return append([]any{new(sql.NullInt64)}, values...), nil
+			}
+			spec.Assign = func(columns []string, values []any) error {
+				outValue := int(values[0].(*sql.NullInt64).Int64)
+				inValue := int(values[1].(*sql.NullInt64).Int64)
+				if nids[inValue] == nil {
+					nids[inValue] = map[*People]struct{}{byID[outValue]: {}}
+					return assign(columns[1:], values[1:])
+				}
+				nids[inValue][byID[outValue]] = struct{}{}
+				return nil
+			}
+		})
+	})
+	neighbors, err := withInterceptors[[]*Group](ctx, query, qr, query.inters)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected "kind" node returned %v`, n.ID)
+		}
+		for kn := range nodes {
+			assign(kn, n)
+		}
+	}
+	return nil
 }
 
 func (pq *PeopleQuery) sqlCount(ctx context.Context) (int, error) {
